@@ -1,21 +1,12 @@
-import React, { useState } from "react";
+import React, { useState ,useEffect} from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, ShoppingCart } from "lucide-react";
 import { HiTrash } from "react-icons/hi";
 import { HiOutlineX } from "react-icons/hi";
 
-import {asset} from '../images/asset.js'
+import { asset } from '../images/asset.js';
 import { ToastContainer, toast } from 'react-toastify';
-
-
-
-
-
-
-
- 
-
-
+import axios from "axios";
 
 const products = [
   {
@@ -26,19 +17,18 @@ const products = [
     image: asset.en1,
     description: "A stylish Moonj grass basket with an intricate floral handle design, perfect for serving or décor"
   },
-   
   {
     id: 2,
     name: "Hand-Knitted Sweater",
     price: 900,
     rating: 4.4,
-    image:asset.en2,
+    image: asset.en2,
     description: "A vibrant green, hand-knitted sweater featuring intricate patterns and buttons, perfect for cozy winter wear."
   },
   {
     id: 3,
     name: "Earthen clay water bottle",
-    price: 450 ,
+    price: 450,
     rating: 4.4,
     image: asset.en3,
     description: "Beautifully hand-painted earthen clay water bottles, combining traditional craftsmanship with vibrant designs for eco-friendly and stylish hydration."
@@ -46,7 +36,7 @@ const products = [
   {
     id: 4,
     name: "Bulb-Shaped Basket and Small Carry Basket",
-    price: 350+250 ,
+    price: 350 + 250,
     rating: 4.4,
     image: asset.en4,
     description: "Beautifully hand-painted earthen clay water bottles, combining traditional craftsmanship with vibrant designs for eco-friendly and stylish hydration."
@@ -54,7 +44,7 @@ const products = [
   {
     id: 5,
     name: "Round Basket with Lid",
-    price: 450 ,
+    price: 450,
     rating: 4.4,
     image: asset.en5,
     description: "Beautifully hand-painted earthen clay water bottles, combining traditional craftsmanship with vibrant designs for eco-friendly and stylish hydration."
@@ -62,15 +52,15 @@ const products = [
   {
     id: 6,
     name: "Paper weight",
-    price: 200 ,
+    price: 200,
     rating: 4.4,
     image: asset.en6,
     description: "Beautifully hand-painted earthen clay water bottles, combining traditional craftsmanship with vibrant designs for eco-friendly and stylish hydration."
   },
   {
     id: 7,
-    name: "Baskets ",
-    price: 200 ,
+    name: "Baskets",
+    price: 200,
     rating: 4.4,
     image: asset.en7,
     description: "Beautifully hand-painted earthen clay water bottles, combining traditional craftsmanship with vibrant designs for eco-friendly and stylish hydration."
@@ -78,7 +68,7 @@ const products = [
   {
     id: 8,
     name: "Hamper Basket",
-    price: 250 ,
+    price: 250,
     rating: 4.4,
     image: asset.en8,
     description: "Beautifully hand-painted earthen clay water bottles, combining traditional craftsmanship with vibrant designs for eco-friendly and stylish hydration."
@@ -95,7 +85,8 @@ const ProductCard = ({ product, addCart }) => {
       pauseOnHover: true,
       draggable: true,
     });
-  }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -124,7 +115,7 @@ const ProductCard = ({ product, addCart }) => {
 
         <button
           className="w-full py-2 px-4 bg-zinc-100 rounded-xl text-zinc-700 font-medium flex items-center justify-center gap-2 hover:bg-yellow-600 hover:text-white transition-colors duration-300"
-          onClick={handleClick} //onClick={() => addCart(product)}
+          onClick={() => addCart(product)}
         >
           <ShoppingCart className="w-4 h-4" />
           Add to Cart
@@ -136,16 +127,6 @@ const ProductCard = ({ product, addCart }) => {
 };
 
 const ECart = () => {
-  const handleClick = () => {
-    toast.info("Currently not available. We will reach out to you soon!", {
-      position: "top-center",
-      autoClose: 5000,
-      hideProgressBar: false,
-      closeOnClick: true,
-      pauseOnHover: true,
-      draggable: true,
-    });
-  }
   const [cartItem, setCartItem] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -190,6 +171,95 @@ const ECart = () => {
     (value, item) => value + item.quantity * item.price,
     0
   );
+
+  
+
+const loadRazorpayScript = () => {
+  return new Promise((resolve) => {
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
+
+useEffect(() => {
+  loadRazorpayScript();
+}, []);
+
+
+
+  const handlePayment = async (productId, amount, productName, address, name) => {
+    const isLoaded = await loadRazorpayScript();
+  if (!isLoaded) {
+    alert("Razorpay SDK failed to load. Check your internet connection.");
+    return;
+  }
+
+    try {
+      const response = await fetch("http://localhost:4000/payment/createOrder", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ productId, amount, productName, address, name }),
+      });
+  
+      const orderData = await response.json();
+  
+      if (!orderData || !orderData.id) {
+        throw new Error("Failed to create an order. Please try again.");
+      }
+  
+      const options = {
+        key: "rzp_test_pfTJNHhhTdUTu3", // Razorpay Key
+        amount: orderData.amount,
+        currency: "INR",
+        name: "Scrapman",
+        description: productName,
+        order_id: orderData.id,
+        handler: async (response) => {
+          const verifyResponse = await fetch("http://localhost:4000/payment/verifyPayment", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              order_id: orderData.id,
+              payment_id: response.razorpay_payment_id,
+              signature: response.razorpay_signature,
+              productId,
+              amount,
+              productName,
+              address,
+              name,
+            }),
+          });
+  
+          const verifyData = await verifyResponse.json();
+          if (verifyData.success) {
+            alert("Payment successful!");
+          } else {
+            alert("Payment verification failed!");
+          }
+        },
+        prefill: {
+          name,
+          email: "user@example.com",
+          contact: "9999999999",
+        },
+        theme: { color: "#3399cc" },
+      };
+  
+      const razorpay = new window.Razorpay(options);
+      razorpay.open();
+    } catch (error) {
+      console.error("Payment error:", error);
+      alert(error.message);
+    }
+  };
+   
+  
+  
 
   return (
     <div className="min-h-screen my-10 bg-zinc-50 mx-10">
@@ -327,10 +397,12 @@ const ECart = () => {
                 <p className="text-lg font-bold text-zinc-800">
                   Total: ₹{total.toFixed(2)}
                 </p>
-                <button onClick={handleClick} className="w-full bg-yellow-600 text-white py-2 px-4 rounded-lg mt-4 hover:bg-yellow-700 transition">
+                <button
+                  onClick={() => handlePayment(1, total, "Order", "Address", "Name")}
+                  className="w-full bg-yellow-600 text-white py-2 px-4 rounded-lg mt-4 hover:bg-yellow-700 transition"
+                >
                   Proceed to Checkout
                 </button>
-                <ToastContainer />
               </div>
             </motion.div>
           )}
